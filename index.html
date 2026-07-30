@@ -109,11 +109,7 @@
     font-family:var(--display); font-style:italic; font-weight:400;
     font-size:clamp(1.35rem,4.6vw,1.75rem); color:var(--gull); letter-spacing:.01em;
   }
-  #prule{ width:34px; height:1px; background:rgba(237,180,99,.55); margin:15px auto 14px; }
-  #pcap{
-    font-family:var(--display); font-size:.98rem; line-height:1.62;
-    color:rgba(233,228,217,.58);
-  }
+  #prule{ width:34px; height:1px; background:rgba(237,180,99,.55); margin:16px auto 0; }
   #pclose{
     position:absolute; left:0; right:0;
     bottom:calc(env(safe-area-inset-bottom,0px) + 20px);
@@ -176,7 +172,6 @@
   <div id="pmeta">
     <div id="ptitle"></div>
     <div id="prule"></div>
-    <div id="pcap"></div>
   </div>
   <div id="pclose">tap anywhere to go back</div>
 </div>
@@ -184,9 +179,9 @@
 <div id="fade"></div>
 
 <div id="start">
-  <h1>Hello there</h1>
+  <h1>hello there</h1>
   <div class="rule"></div>
-  <p>Jeremy Akins is a photographer and artist who lives in Astoria, Oregon.</p>
+  <p>Jeremy Akins is an artist and photographer who lives in Astoria, Oregon.</p>
   <button id="go" disabled>Loading</button>
   <div id="load">Fetching three.js</div>
 </div>
@@ -958,6 +953,35 @@ function push(name,geo,m,col,uvs,jit){
 function B(name,x,y,z,sx,sy,sz,rot,col,uvs,jit){
   push(name,UNIT,M(x,y,z,sx,sy,sz,rot&&rot[0],rot&&rot[1],rot&&rot[2]),col,uvs,jit);
 }
+/* The same box with its lid taken off.
+
+   Every floor here is a finely subdivided plane laid on top of a slab,
+   because the affine mapping shears a big undivided quad. But that left
+   the slab's own top face sitting two or three centimetres under the
+   plane, both in the same merged mesh, both fighting for the same
+   depth — and since one is tessellated and the other is two big
+   triangles, which of them wins changes as you turn your head. That is
+   the flicker. The slab's top is never visible anyway, so it goes. */
+const UNIT_NT=(function(){
+  const g=new THREE.BoxGeometry(1,1,1).toNonIndexed();
+  const P=g.attributes.position.array, N=g.attributes.normal.array,
+        U=g.attributes.uv.array;
+  const p=[],n=[],u=[];
+  const tris=P.length/9;
+  for(let t=0;t<tris;t++){
+    if(N[t*9+1]>0.9) continue;                 /* pointing straight up: drop it */
+    for(let k=0;k<9;k++){ p.push(P[t*9+k]); n.push(N[t*9+k]); }
+    for(let k=0;k<6;k++){ u.push(U[t*6+k]); }
+  }
+  const o=new THREE.BufferGeometry();
+  o.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+  o.setAttribute('normal',  new THREE.Float32BufferAttribute(n,3));
+  o.setAttribute('uv',      new THREE.Float32BufferAttribute(u,2));
+  return o;
+})();
+function BNT(name,x,y,z,sx,sy,sz,rot,col,uvs,jit){
+  push(name,UNIT_NT,M(x,y,z,sx,sy,sz,rot&&rot[0],rot&&rot[1],rot&&rot[2]),col,uvs,jit);
+}
 function CY(name,x,y,z,r,hgt,rot,col,uvs,seg){
   push(name,seg===8?CYL8:CYL6,M(x,y,z,r*2,hgt,r*2,rot&&rot[0],rot&&rot[1],rot&&rot[2]),col,uvs);
 }
@@ -1327,7 +1351,9 @@ function landH(x,z){
     const h=rnd(3.3,3.7);
     B('pile',x,WALK-h/2,SHORE+0.2,0.46,h,0.46,[0,rnd(-0.1,0.1),0],[0.72,0.68,0.62],[1,2]);
   }
-  B('deck',20,WALK-0.16,SHORE+0.6,600,0.34,1.4,null,[0.62,0.58,0.52],[90,1]);
+  /* the sill along the shore edge. Its top used to sit a centimetre
+     PROUD of the decking, which is the worst version of this. */
+  BNT('deck',20,WALK-0.21,SHORE+0.6,584,0.34,1.4,null,[0.62,0.58,0.52],[90,1]);
   for(let x=-250;x<=300;x+=6){
     for(let i=0;i<4;i++){
       const rx=x+rnd(-3,3), rz=SHORE+rnd(0.6,5.2), s=rnd(1.1,2.6);
@@ -1344,10 +1370,15 @@ function landH(x,z){
     const gtop=new THREE.PlaneGeometry(LEN,WID,146,10);
     gtop.rotateX(-Math.PI/2);
     push('deck',gtop,M(cx,WALK,cz,1,1,1,0,0,0),[1.22,1.08,0.90],[73,2],0.30);
-    /* the edge you see from the water, and the joists under it */
-    B('deck',cx,WALK-0.17,cz,LEN,0.26,WID,null,[0.66,0.55,0.44],[80,3]);
+    /* the edge you see from the water, and the joists under it. The slab
+       is a hair narrower than the decking so the decking always overhangs
+       it and you can never see down into the open top. */
+    BNT('deck',cx,WALK-0.17,cz,LEN-0.05,0.26,WID-0.05,null,[0.66,0.55,0.44],[80,3]);
+    /* the joists. Their tops used to finish a centimetre above the shore,
+       which fought under the deck where nobody could see it but the
+       renderer could. They sit a little lower now. */
     for(let x=-260;x<=300;x+=3)
-      B('deck',x,WALK-0.46,cz,0.3,0.6,9.4,null,[0.74,0.62,0.50],[1,3]);
+      B('deck',x,WALK-0.50,cz,0.3,0.6,9.4,null,[0.74,0.62,0.50],[1,3]);
   })();
   /* the rail: square posts, four flat boards with air between them,
      and a wide cap you can lean your elbows on */
@@ -1893,10 +1924,15 @@ const OCH=[1.02,0.93,0.76], OCH2=[0.94,0.85,0.70], MAH=[0.86,0.7,0.6];
   /* plinth, and the piers holding it out over the water */
   (function(){
     const pw=G.px1-G.px0, pd=G.pz1-G.pz0;
+    /* The terrace runs right under the room, and it used to sit at exactly
+       the same height as the gallery floor laid on top of it — no gap at
+       all, so the two fought for every pixel. It steps down five
+       centimetres now, which is what a threshold is for anyway. */
+    const PDROP=0.05;
     const pt=new THREE.PlaneGeometry(pw,pd,26,20);
     pt.rotateX(-Math.PI/2);
-    push('conc',pt,M((G.px0+G.px1)/2,f,(G.pz0+G.pz1)/2,1,1,1,0,0,0),OCH,[18,14],0.3);
-    B('conc',(G.px0+G.px1)/2,f-0.58,(G.pz0+G.pz1)/2,pw,1.1,pd,null,OCH,[18,14]);
+    push('conc',pt,M((G.px0+G.px1)/2,f-PDROP,(G.pz0+G.pz1)/2,1,1,1,0,0,0),OCH,[18,14],0.3);
+    BNT('conc',(G.px0+G.px1)/2,f-0.58-PDROP,(G.pz0+G.pz1)/2,pw-0.05,1.1,pd-0.05,null,OCH,[18,14]);
   })();
   B('conc',(G.px0+G.px1)/2,f-1.35,(G.pz0+G.pz1)/2,G.px1-G.px0-1.6,0.6,G.pz1-G.pz0-1.6,null,
     [0.72,0.66,0.56],[18,14]);
@@ -2019,7 +2055,7 @@ const OCH=[1.02,0.93,0.76], OCH2=[0.94,0.85,0.70], MAH=[0.86,0.7,0.6];
     const gf=new THREE.PlaneGeometry(fw,fd,22,15);
     gf.rotateX(-Math.PI/2);
     push('gfloor',gf,M(151.5,f,0,1,1,1,0,0,0),[1.0,0.94,0.84],[10,7],0.28);
-    B('gfloor',151.5,f-0.12,0,fw,0.20,fd,null,[0.82,0.76,0.68],[10,7]);
+    BNT('gfloor',151.5,f-0.12,0,fw-0.05,0.20,fd-0.05,null,[0.82,0.76,0.68],[10,7]);
   })();
   for(let x=G.x0+2.6;x<G.x1-1;x+=4.2)
     B('gfloor',x,f-0.02,0,0.34,0.10,G.z1-G.z0-1.0,null,[0.74,0.66,0.56],[1,7]);
@@ -2696,22 +2732,16 @@ lateBoat.userData.v=4.4;
 const PH=(typeof PHOTOS!=='undefined')?PHOTOS:{};
 const ART=[
   {k:'kayak',  t:'Early Crossing',
-   c:'One boat, three ducks, and a mountain still deciding whether to appear.',
    x:142.5, z:7.66, ry:Math.PI},
   {k:'saddle', t:'Ridge After Ridge',
-   c:'The light comes over the last hill and everything behind it turns to smoke.',
    x:160.5, z:7.66, ry:Math.PI},
   {k:'surf',   t:'Weather Coming',
-   c:'An hour of wind arriving all at once, with nothing in the way to break it.',
    x:143.6, z:-7.66, ry:0},
   {k:'river',  t:'The Wide Part',
-   c:'Where the river forgets that it is a river.',
    x:159.4, z:-7.66, ry:0},
   {k:'granite',t:'Cathedral',
-   c:'Stone that has been standing here long enough to have learned how to be still.',
    x:140.44, z:0, ry:Math.PI/2},
   {k:'storm',  t:'Sermon',
-   c:'The sea against basalt \u2014 the only argument it has ever needed.',
    x:162.66, z:-5.2, ry:-Math.PI/2}
 ];
 const ARTY=G.f+1.58;
@@ -3156,7 +3186,7 @@ function tap(px,py){
 /* ── standing in front of a photograph ───────────────────────── */
 const sillEl=document.getElementById('sill'), sillB=sillEl.querySelector('b');
 const plateEl=document.getElementById('plate'), pimg=document.getElementById('pimg'),
-      ptitle=document.getElementById('ptitle'), pcap=document.getElementById('pcap');
+      ptitle=document.getElementById('ptitle');
 let plateOpen=false, nearArt=null;
 const sillI=sillEl.querySelector('i');
 const DOORPROMPT={t:'1510',c:'',door:true};
@@ -3178,7 +3208,7 @@ function openPlate(a){
   if(plateOpen) return;
   plateOpen=true;
   pimg.src='data:image/jpeg;base64,'+PH[a.k].b;
-  ptitle.textContent=a.t; pcap.textContent=a.c;
+  ptitle.textContent=a.t;
   plateEl.classList.add('on');
   sillEl.classList.remove('on');
   touchSound('glass',cam.position,7);
